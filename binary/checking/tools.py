@@ -1,4 +1,6 @@
 import numpy as np
+import plotly.graph_objects as go
+import plotly.express as px
 from scipy.stats import binomtest, ttest_1samp
 
 
@@ -82,3 +84,50 @@ def duration_conf_interval(duration_matrix, conf=0.99):
         right_side_list.append(right_side - mean)
 
     return left_side_list, right_side_list
+
+
+def table_show(ratio_duration_matrix, p0_list, lift_list, title):
+    """
+    Функция для визуализации отношений длительностей теста
+
+    :param ratio_duration_matrix: матрица значений отношений теста
+    :param p0_list: список значений вероятностей p0
+    :param lift_list: список значений относительных изменений lift
+    :param title: название графика
+    :return: фигура Plotly
+    """
+    def color_matrix(value_matrix):
+        min_value = 0.5
+        max_value = 2
+
+        disc_value_func = lambda value: min(int(3 * (value - 1) / (max_value - 1) + 5), 10) if value >= 1 \
+                                        else max(int(5 - 3 * (1 - value) / (1 - min_value)), 0)
+        return [
+            [px.colors.sequential.RdBu[disc_value_func(value)] for value in value_list]
+            for value_list in value_matrix
+        ]
+
+    values = [[
+        f"{p0:.1%}"
+        for p0 in p0_list
+    ]]
+
+    values += [
+        [f"{value:.2f}" for value in value_list]
+        for value_list in ratio_duration_matrix
+    ]
+
+    fill_color = [len(lift_list) * ["lightgrey"]] \
+                 + color_matrix(ratio_duration_matrix)
+
+    fig = go.Figure(data=[go.Table(header={
+        "values": [["Конверсия / Изменение конверсии"]]
+                  + [[f"{lift:.1%}"] for lift in lift_list],
+        "fill_color": "lightgrey"
+    },
+        cells={
+            "values": values,
+            "fill_color": fill_color
+        })])
+    fig.update_layout(title=title)
+    return fig
