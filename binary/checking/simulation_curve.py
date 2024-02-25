@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def one_sample_curve(s_list, p0, d, alpha, beta, alternative):
+def one_sample_curve(s_list, p0, d, alpha, beta, alternative, n_list=None):
     """
     Определение кривой логарифмического отношения правдоподобий
 
@@ -14,6 +14,7 @@ def one_sample_curve(s_list, p0, d, alpha, beta, alternative):
     :param alpha: ограничение на вероятность ошибки I рода (уровень значимости)
     :param beta: ограничение на вероятность ошибки II рода (1 - мощность)
     :param alternative: наименование односторонней альтернативы
+    :param n_list: массив значений прошедшей длительности
     :return: словарь res
              res["curve"] - кривая логарифмического отношения правдоподобий
              res["low_bound"] - нижняя граница для логарифмического отношения правдоподобий
@@ -38,9 +39,10 @@ def one_sample_curve(s_list, p0, d, alpha, beta, alternative):
     else:
         raise ValueError(f"Неправильная альтернатива: {alternative}")
 
-    # Получение массива из строк вида (1, ..., sample_size) в количестве iter_size
-    n_one_dim_list = 1 + np.arange(sample_size)
-    n_list = np.tile(n_one_dim_list.reshape(-1, 1), iter_size).T
+    if n_list is None:
+        # Получение массива из строк вида (1, ..., sample_size) в количестве iter_size
+        n_one_dim_list = 1 + np.arange(sample_size)
+        n_list = np.tile(n_one_dim_list.reshape(-1, 1), iter_size).T
 
     # Логарифмическое отношение правдоподобий для бернуллиевских величин
     curve = s_list * np.log(p_high / p_low) \

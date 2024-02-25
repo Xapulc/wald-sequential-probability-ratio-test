@@ -1,4 +1,5 @@
 import numpy as np
+from collections.abc import Iterable
 
 from .simulation_curve import one_sample_curve
 from .tools import get_duration_from_bound_crossing, get_value_at_duration
@@ -6,7 +7,8 @@ from .tools import get_duration_from_bound_crossing, get_value_at_duration
 
 def one_sample_two_sided_sprt(x, p0, d, alpha, beta,
                               greater_initial_curve=None, less_initial_curve=None,
-                              greater_stop_flg=None, less_stop_flg=None):
+                              greater_stop_flg=None, less_stop_flg=None,
+                              n_list=None):
     """
     Последовательный анализ в случае одновыборочной задачи
     и двусторонней альтернативы
@@ -16,6 +18,8 @@ def one_sample_two_sided_sprt(x, p0, d, alpha, beta,
               а iter_size - количество итераций моделирования (тестов)
     :param p0: значение вероятности при гипотезе
     :param d: абсолютное значение MDE
+              если список, то d[0] - это MDE для alternative="less",
+                              d[1] - это MDE для alternative="greater"
     :param alpha: ограничение на вероятность ошибки I рода (уровень значимости)
     :param beta: ограничение на вероятность ошибки II рода (1 - мощность)
     :param greater_initial_curve: список длины iter_size из значений
@@ -30,6 +34,7 @@ def one_sample_two_sided_sprt(x, p0, d, alpha, beta,
                              что в конкретном тесте проверка гипотезы p0 против p0 + d приостановлена
     :param less_stop_flg: список длины iter_size из флагов того,
                           что в конкретном тесте проверка гипотезы p0 - d против p0 приостановлена
+    :param n_list: массив значений прошедшей длительности
     :return: словарь res
              res["duration"] - список длительностей теста
              res["result"] - список результатов теста
@@ -48,24 +53,34 @@ def one_sample_two_sided_sprt(x, p0, d, alpha, beta,
     x = np.array(x)
     s_list = np.cumsum(x, axis=1)
 
+    # Определение MDE для односторонних альтернатив
+    if isinstance(d, Iterable):
+        d_low = d[0]
+        d_high = d[1]
+    else:
+        d_low = np.abs(d)
+        d_high = np.abs(d)
+
     # Получение логарифмического отношения правдоподобий
     # и границ для принятия решений
     res = one_sample_curve(s_list=s_list,
                            p0=p0,
-                           d=np.abs(d),
+                           d=d_high,
                            alpha=alpha/2,
                            beta=beta,
-                           alternative="greater")
+                           alternative="greater",
+                           n_list=n_list)
     greater_curve = res["curve"]
     greater_low_bound = res["low_bound"]
     greater_high_bound = res["high_bound"]
 
     res = one_sample_curve(s_list=s_list,
                            p0=p0,
-                           d=np.abs(d),
+                           d=d_low,
                            alpha=alpha/2,
                            beta=beta,
-                           alternative="less")
+                           alternative="less",
+                           n_list=n_list)
     less_curve = res["curve"]
     less_low_bound = res["low_bound"]
     less_high_bound = res["high_bound"]

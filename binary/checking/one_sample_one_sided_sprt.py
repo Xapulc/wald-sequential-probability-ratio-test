@@ -5,7 +5,7 @@ from .tools import get_duration_from_bound_crossing, get_value_at_duration
 
 
 def one_sample_one_sided_sprt(x, p0, d, alpha, beta, alternative,
-                              initial_curve=None):
+                              initial_curve=None, n_list=None):
     """
     Последовательный анализ в случае одновыборочной задачи
     и односторонней альтернативы
@@ -21,6 +21,7 @@ def one_sample_one_sided_sprt(x, p0, d, alpha, beta, alternative,
     :param initial_curve: список длины iter_size из значений
                           логарифмического отношения правдоподобий
                           к моменту применения последовательного анализа
+    :param n_list: массив значений прошедшей длительности
     :return: словарь res
              res["duration"] - список длительностей теста
              res["result"] - список результатов теста
@@ -39,7 +40,8 @@ def one_sample_one_sided_sprt(x, p0, d, alpha, beta, alternative,
                            d=np.abs(d),
                            alpha=alpha,
                            beta=beta,
-                           alternative=alternative)
+                           alternative=alternative,
+                           n_list=n_list)
     curve = res["curve"]
     low_bound = res["low_bound"]
     high_bound = res["high_bound"]

@@ -100,8 +100,8 @@ def table_show(ratio_duration_matrix, p0_list, lift_list, title):
         min_value = 0.5
         max_value = 2
 
-        disc_value_func = lambda value: min(int(3 * (value - 1) / (max_value - 1) + 5), 10) if value >= 1 \
-                                        else max(int(5 - 3 * (1 - value) / (1 - min_value)), 0)
+        disc_value_func = lambda value: min(int(3 * (value - 1) / (max_value - 1) + 5), 9) if value >= 1 \
+                                        else max(int(5 - 3 * (1 - value) / (1 - min_value)), 1)
         return [
             [px.colors.sequential.RdBu[disc_value_func(value)] for value in value_list]
             for value_list in value_matrix
@@ -131,3 +131,34 @@ def table_show(ratio_duration_matrix, p0_list, lift_list, title):
         })])
     fig.update_layout(title=title)
     return fig
+
+
+def transform_two_sample_one_sided_mde(p0, d, alternative):
+    """
+    Функция, вычисляющая MDE для одновыборочной задачи
+    из параметров двухвыборочного последовательного анализа
+
+    Вальд А.
+    Последовательный анализ.
+    – 1960. – С. 143-146.
+
+    :param p0: значение вероятности при гипотезе
+    :param d: абсолютное значение MDE
+    :param alternative: наименование односторонней альтернативы
+    :return: MDE одновыборочной задачи
+    """
+    p0_transformed = 1/2
+
+    if alternative == "greater":
+        p_low = p0
+        p_high = p0 + d
+    elif alternative == "less":
+        p_low = p0 - d
+        p_high = p0
+    else:
+        raise ValueError(f"Неправильная альтернатива: {alternative}")
+
+    p_transformed = (1 - p_low) * p_high / ((1 - p_low) * p_high + p_low * (1 - p_high))
+    d_transformed = np.abs(p_transformed - p0_transformed)
+
+    return d_transformed
