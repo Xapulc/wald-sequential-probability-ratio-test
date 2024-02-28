@@ -8,16 +8,16 @@ class BinaryTwoSampleSprt(object):
                  initial_one_sample_success_cnt=0,
                  initial_one_sample_sample_size=0):
         """
-        Последовательный анализ в случае одновыборочной задачи
+        Последовательный анализ в случае двухвыборочной задачи
 
         :param p0: значение вероятности при гипотезе
         :param d: абсолютное значение MDE
         :param alpha: ограничение на вероятность ошибки I рода (уровень значимости)
         :param beta: ограничение на вероятность ошибки II рода (1 - мощность)
         :param alternative: наименование односторонней альтернативы
-                            greater: правосторонняя альтернатива p > p0
-                            less: левосторонняя альтернатива p < p0
-                            two-sided: двусторонняя альтернатива p != p0
+                            greater: правосторонняя альтернатива p1 > p2
+                            less: левосторонняя альтернатива p1 < p2
+                            two-sided: двусторонняя альтернатива p1 != p2
         :param initial_first_success_cnt: изначальное количество "успехов" в первой выборке
         :param initial_first_sample_size: изначальный размер первой выборки
         :param initial_second_success_cnt: изначальное количество "успехов" во второй выборке
@@ -57,6 +57,26 @@ class BinaryTwoSampleSprt(object):
         self.greater_stop_flg = False
         self.less_stop_flg = False
 
+    def transform_two_sample_one_sided_mde(self, p_low, p_high):
+        """
+        Функция, вычисляющая MDE для одновыборочной задачи
+        из параметров двухвыборочного последовательного анализа
+
+        Вальд А.
+        Последовательный анализ.
+        – 1960. – С. 143-146.
+
+        :param p0: значение вероятности при гипотезе
+        :param d: абсолютное значение MDE
+        :param alternative: наименование односторонней альтернативы
+        :return: MDE одновыборочной задачи
+        """
+        p0_transformed = 1 / 2
+        p_transformed = (1 - p_low) * p_high / ((1 - p_low) * p_high + p_low * (1 - p_high))
+        d_transformed = np.abs(p_transformed - p0_transformed)
+
+        return d_transformed
+
     def calc_one_sided_probs(self, alternative):
         """
         Функция для расчёта базовых значений вероятностей (конверсий)
@@ -69,11 +89,13 @@ class BinaryTwoSampleSprt(object):
         """
 
         if alternative == "greater":
-            p_low = self.p0
-            p_high = self.p0 + self.d
+            d_transformed = self.transform_two_sample_one_sided_mde(self.p0, self.p0+self.d)
+            p_low = 1 / 2
+            p_high = p_low + d_transformed
         elif alternative == "less":
-            p_low = self.p0 - self.d
-            p_high = self.p0
+            d_transformed = self.transform_two_sample_one_sided_mde(self.p0-self.d, self.p0)
+            p_high = 1 / 2
+            p_low = p_high - d_transformed
         else:
             raise ValueError(f"Неправильная альтернатива: {alternative}")
 
@@ -134,87 +156,121 @@ class BinaryTwoSampleSprt(object):
         :return: описание принятого решения
         """
 
-        if first_sample_flg:
-            self.first_sample_buf
-
         # Обновление общей статистики теста
-        self.success_cnt += x
-        self.sample_size += 1
+        if first_sample_flg:
+            self.first_success_cnt += x
+            self.first_sample_size += 1
+        else:
+            self.second_success_cnt += x
+            self.second_sample_size += 1
 
         # Если тест продолжается, обновляем расчёты
         if self.decision_desc == "Тест продолжается":
             # Так как тест ещё не остановлен,
             # обновляем статистику теста до принятого решения
-            self.stop_success_cnt = self.success_cnt
-            self.stop_sample_size = self.sample_size
+            self.stop_first_success_cnt = self.first_success_cnt
+            self.stop_first_sample_size = self.first_sample_size
 
-            if self.alternative != "two-sided":
-                # Если альтернатива одностороняя,
-                # то решение принимается по одному расчёту
-                # логарифмического отношения правдоподобий
-                curve = self.calc_one_sided_curve(self.success_cnt, self.sample_size, self.alternative)
-                low_bound, high_bound = self.calc_one_sided_bounds(self.alpha, self.beta, self.alternative)
+            self.stop_second_success_cnt = self.second_success_cnt
+            self.stop_second_sample_size = self.second_sample_size
 
-                # Если значение логарифмического отношения правдоподобий
-                # пересекает одну из границ,
-                # тест останавливается с принятием решения
-                if curve > high_bound:
-                    if self.alternative == "greater":
-                        self.decision_desc = "Тест остановлен, справедлива альтернатива p > p0"
-                    else:
-                        self.decision_desc = "Тест остановлен, справедлива гипотеза p >= p0"
-                elif curve < low_bound:
-                    if self.alternative == "greater":
-                        self.decision_desc = "Тест остановлен, справедлива гипотеза p <= p0"
-                    else:
-                        self.decision_desc = "Тест остановлен, справедлива альтернатива p < p0"
+            if (first_sample_flg and len(self.second_sample_buf) == 0) \
+                or (not first_sample_flg and len(self.first_sample_buf) == 0):
+                if first_sample_flg and len(self.second_sample_buf) == 0:
+                    self.first_sample_buf.append(x)
+                else:
+                    self.second_sample_buf.append(x)
             else:
-                # Если альтернатива двусторонняя,
-                # то мы параллельно "проводим" два последовательных анализа:
-                # p0 против p0+d (alternative = "greater"),
-                # p0-d против p0 (alternative = "less")
-                greater_curve = self.calc_one_sided_curve(self.success_cnt, self.sample_size, alternative="greater")
-                greater_low_bound, greater_high_bound = self.calc_one_sided_bounds(self.alpha/2, self.beta, alternative="greater")
+                if first_sample_flg and len(self.second_sample_buf) > 0:
+                    first_value = x
+                    second_value = self.second_sample_buf.pop(0)
+                else:
+                    first_value = self.first_sample_buf.pop(0)
+                    second_value = x
 
-                less_curve = self.calc_one_sided_curve(self.success_cnt, self.sample_size, alternative="less")
-                less_low_bound, less_high_bound = self.calc_one_sided_bounds(self.alpha/2, self.beta, alternative="less")
+                # Переход к одновыборочной задаче
+                self.one_sample_success_cnt += first_value * (1 - second_value)
+                self.one_sample_sample_size += 1 if first_value != second_value else 0
 
-                # Если тест для alternative = "greater" ранее не завершён,
-                # а сейчас произошло пересечение верхней границы,
-                # то останавливаем тест с решением о стат. значимом росте
-                if not self.greater_stop_flg and greater_curve > greater_high_bound:
-                    self.decision_desc = "Тест остановлен, справедлива альтернатива p > p0"
+                if self.alternative != "two-sided":
+                    # Если альтернатива одностороняя,
+                    # то решение принимается по одному расчёту
+                    # логарифмического отношения правдоподобий
+                    curve = self.calc_one_sided_curve(self.one_sample_success_cnt,
+                                                      self.one_sample_sample_size,
+                                                      self.alternative)
+                    low_bound, high_bound = self.calc_one_sided_bounds(self.alpha,
+                                                                       self.beta,
+                                                                       self.alternative)
 
-                # Если тест для alternative = "less" ранее не завершён,
-                # а сейчас произошло пересечение нижней границы,
-                # то останавливаем тест с решением о стат. значимом падении
-                if not self.less_stop_flg and less_curve < less_low_bound:
-                    self.decision_desc = "Тест остановлен, справедлива альтернатива p < p0"
+                    # Если значение логарифмического отношения правдоподобий
+                    # пересекает одну из границ,
+                    # тест останавливается с принятием решения
+                    if curve > high_bound:
+                        if self.alternative == "greater":
+                            self.decision_desc = "Тест остановлен, справедлива альтернатива p1 > p2"
+                        else:
+                            self.decision_desc = "Тест остановлен, справедлива гипотеза p1 >= p2"
+                    elif curve < low_bound:
+                        if self.alternative == "greater":
+                            self.decision_desc = "Тест остановлен, справедлива гипотеза p1 <= p2"
+                        else:
+                            self.decision_desc = "Тест остановлен, справедлива альтернатива p1 < p2"
+                else:
+                    # Если альтернатива двусторонняя,
+                    # то мы параллельно "проводим" два последовательных анализа:
+                    # p0 против p0+d (alternative = "greater"),
+                    # p0-d против p0 (alternative = "less")
+                    greater_curve = self.calc_one_sided_curve(self.one_sample_success_cnt,
+                                                              self.one_sample_sample_size,
+                                                              alternative="greater")
+                    greater_low_bound, greater_high_bound = self.calc_one_sided_bounds(self.alpha/2,
+                                                                                       self.beta,
+                                                                                       alternative="greater")
 
-                # Если для какой-то из альтернатив тест был ранее завершён,
-                # но тест с двусторонней альтернативой продолжается,
-                # то ранее было пересечение границы, соответствующее p = p0
-                # Поэтому если для какой-то альтернативы тест завершился ранее,
-                # а сейчас для другой альтернативы
-                # есть пересечение границы, соответствующее  p = p0,
-                # то мы можем завершить тест с принятием решения p = p0
-                if self.greater_stop_flg and less_curve > less_high_bound:
-                    self.decision_desc = "Тест остановлен, справедлива гипотеза p = p0"
-                if self.less_stop_flg and greater_curve < greater_low_bound:
-                    self.decision_desc = "Тест остановлен, справедлива гипотеза p = p0"
+                    less_curve = self.calc_one_sided_curve(self.one_sample_success_cnt,
+                                                           self.one_sample_sample_size,
+                                                           alternative="less")
+                    less_low_bound, less_high_bound = self.calc_one_sided_bounds(self.alpha/2,
+                                                                                 self.beta,
+                                                                                 alternative="less")
 
-                # Если ни для какой альтернативы тест ранее не был завершён,
-                # а сейчас для обеих альтернатив есть пересечение границы при p = p0,
-                # то мы можем завершить тест с принятием решения p = p0
-                if not self.greater_stop_flg and greater_curve < greater_low_bound \
-                    and self.less_stop_flg and less_curve > less_high_bound:
-                    self.decision_desc = "Тест остановлен, справедлива гипотеза p = p0"
+                    # Если тест для alternative = "greater" ранее не завершён,
+                    # а сейчас произошло пересечение верхней границы,
+                    # то останавливаем тест с решением о стат. значимом росте
+                    if not self.greater_stop_flg and greater_curve > greater_high_bound:
+                        self.decision_desc = "Тест остановлен, справедлива альтернатива p1 > p2"
 
-                # Завершаем тест для тех альтернатив,
-                # для которых есть пересечение хотя бы одной из границ
-                if greater_curve > greater_high_bound or greater_curve < greater_low_bound:
-                    self.greater_stop_flg = True
-                if less_curve > less_high_bound or less_curve < less_low_bound:
-                    self.less_stop_flg = True
+                    # Если тест для alternative = "less" ранее не завершён,
+                    # а сейчас произошло пересечение нижней границы,
+                    # то останавливаем тест с решением о стат. значимом падении
+                    if not self.less_stop_flg and less_curve < less_low_bound:
+                        self.decision_desc = "Тест остановлен, справедлива альтернатива p1 < p2"
+
+                    # Если для какой-то из альтернатив тест был ранее завершён,
+                    # но тест с двусторонней альтернативой продолжается,
+                    # то ранее было пересечение границы, соответствующее p1 = p2
+                    # Поэтому если для какой-то альтернативы тест завершился ранее,
+                    # а сейчас для другой альтернативы
+                    # есть пересечение границы, соответствующее p1 = p2,
+                    # то мы можем завершить тест с принятием решения p1 = p2
+                    if self.greater_stop_flg and less_curve > less_high_bound:
+                        self.decision_desc = "Тест остановлен, справедлива гипотеза p1 = p2"
+                    if self.less_stop_flg and greater_curve < greater_low_bound:
+                        self.decision_desc = "Тест остановлен, справедлива гипотеза p1 = p2"
+
+                    # Если ни для какой альтернативы тест ранее не был завершён,
+                    # а сейчас для обеих альтернатив есть пересечение границы при p1 = p2,
+                    # то мы можем завершить тест с принятием решения p1 = p2
+                    if not self.greater_stop_flg and greater_curve < greater_low_bound \
+                        and self.less_stop_flg and less_curve > less_high_bound:
+                        self.decision_desc = "Тест остановлен, справедлива гипотеза p1 = p2"
+
+                    # Завершаем тест для тех альтернатив,
+                    # для которых есть пересечение хотя бы одной из границ
+                    if greater_curve > greater_high_bound or greater_curve < greater_low_bound:
+                        self.greater_stop_flg = True
+                    if less_curve > less_high_bound or less_curve < less_low_bound:
+                        self.less_stop_flg = True
 
         return self.decision_desc
