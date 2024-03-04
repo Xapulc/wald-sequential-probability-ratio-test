@@ -196,3 +196,19 @@ class BinaryOneSampleSprt(object):
                     self.less_stop_flg = True
 
         return self.decision_desc
+
+    def append_list(self, x_list):
+        """
+        Добавление списка из новых элементов выборки
+        с принятием решения о возможности
+        остановки последовательного теста
+
+        :param x_list: список значений новых элементов выборки
+        :return: описание принятого решения
+        """
+
+        decision_desc = self.decision_desc
+        for x in x_list:
+            decision_desc = self.append(x)
+
+        return decision_desc

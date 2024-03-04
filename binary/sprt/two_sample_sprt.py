@@ -274,3 +274,22 @@ class BinaryTwoSampleSprt(object):
                         self.less_stop_flg = True
 
         return self.decision_desc
+
+    def append_list(self, x_list, y_list):
+        """
+        Добавление списка из новых элементов для обеих вариаций
+        с принятием решения о возможности
+        остановки последовательного теста
+
+        :param x_list: список значений новых элементов первой выборки
+        :param y_list: список значений новых элементов второй выборки
+        :return: описание принятого решения
+        """
+
+        decision_desc = self.decision_desc
+        for x in x_list:
+            decision_desc = self.append(x, first_sample_flg=True)
+        for y in y_list:
+            decision_desc = self.append(y, first_sample_flg=False)
+
+        return decision_desc
