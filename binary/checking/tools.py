@@ -86,7 +86,7 @@ def duration_conf_interval(duration_matrix, conf=0.99):
     return left_side_list, right_side_list
 
 
-def table_show(ratio_duration_matrix, p0_list, lift_list, title):
+def table_show(ratio_duration_matrix, p0_list, lift_list, title, abs_flg=True):
     """
     Функция для визуализации отношений длительностей теста
 
@@ -96,7 +96,7 @@ def table_show(ratio_duration_matrix, p0_list, lift_list, title):
     :param title: название графика
     :return: фигура Plotly
     """
-    def color_matrix(value_matrix):
+    def abs_color_matrix(value_matrix):
         min_value = 0.5
         max_value = 2
 
@@ -107,18 +107,37 @@ def table_show(ratio_duration_matrix, p0_list, lift_list, title):
             for value_list in value_matrix
         ]
 
+    def rel_color_matrix(value_matrix):
+        max_value = 0.5
+
+        disc_value_func = lambda value: min(int(6 * value / max_value), 6)
+        return [
+            [px.colors.sequential.OrRd[disc_value_func(value)] for value in value_list]
+            for value_list in value_matrix
+        ]
+
     values = [[
         f"{p0:.1%}"
         for p0 in p0_list
     ]]
 
-    values += [
-        [f"{value:.2f}" for value in value_list]
-        for value_list in ratio_duration_matrix
-    ]
+    if abs_flg:
+        values += [
+            [f"{value:.2f}" for value in value_list]
+            for value_list in ratio_duration_matrix
+        ]
+    else:
+        values += [
+            [f"{value:.2%}" for value in value_list]
+            for value_list in ratio_duration_matrix
+        ]
 
-    fill_color = [len(lift_list) * ["lightgrey"]] \
-                 + color_matrix(ratio_duration_matrix)
+    if abs_flg:
+        fill_color = [len(lift_list) * ["lightgrey"]] \
+                     + abs_color_matrix(ratio_duration_matrix)
+    else:
+        fill_color = [len(lift_list) * ["lightgrey"]] \
+                     + rel_color_matrix(ratio_duration_matrix)
 
     fig = go.Figure(data=[go.Table(header={
         "values": [["Конверсия / Изменение конверсии"]]

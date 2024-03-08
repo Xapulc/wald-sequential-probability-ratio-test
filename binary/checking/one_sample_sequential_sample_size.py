@@ -74,20 +74,43 @@ def operation_characteristic_root(p, p_low, p_high):
                          f"в отрезке [{p_low}, {p_high}]")
 
 
-def operation_characteristic(p, p_low, p_high, alpha_low, alpha_high):
+def prob(h, p_low, p_high):
+    """
+    Значение вероятности p = p(h),
+    зависящее от корня h
+    операционной характеристики
+
+    Вальд А.
+    Последовательный анализ.
+    – 1960. – С. 75-79.
+
+    :param h: значение корня операционной характеристики
+    :param p_low: нижний порог веротяности
+    :param p_high: верхний порог вероятности
+    :return: значение вероятности p = p(h)
+    """
+    if h == -1:
+        return p_high
+    elif h == 1:
+        return p_low
+    elif h == 0:
+        return p_critical(p_low, p_high)
+    else:
+        return (1 - np.exp(h * np.log((1-p_high) / (1-p_low)))) \
+               / (np.exp(h * np.log(p_high / p_low)) - np.exp(h * np.log((1-p_high) / (1-p_low))))
+
+
+def operation_characteristic(h, alpha_low, alpha_high):
     """
     Операционная характеристика
     - вероятность принять гипотезу p = p_low
-    при истинное значение равно p
+    при истинное значение равно p = p(h)
 
     Tartakovsky A., Nikiforov I., Basseville M.
     Sequential analysis: Hypothesis testing and changepoint detection.
     – CRC press, 2014. – С. 125.
 
-    :param p: истинное значение вероятности,
-              лежащее в отрезке [p_low, p_high]
-    :param p_low: нижний порог веротяности
-    :param p_high: верхний порог вероятности
+    :param h: значение корня операционной характеристики
     :param alpha_low: вероятность пересечения нижней границы
                       при справедливости p = p_high
     :param alpha_high: вероятность пересечения нижней границы
@@ -98,17 +121,12 @@ def operation_characteristic(p, p_low, p_high, alpha_low, alpha_high):
     low_bound = np.log(alpha_low / (1 - alpha_high))
     high_bound = np.log((1 - alpha_low) / alpha_high)
 
-    # Критическое значение параметра p
-    p_crit = p_critical(p_low, p_high)
-
-    if p == p_crit:
-        # Если значение параметра p равно критическому,
-        # можно аналитически определить значени операционной характеристики
+    if h == 0:
+        # Если значение параметра h равно нулю,
+        # то можно воспользоваться предельной формулой
         return high_bound / (high_bound - low_bound)
     else:
-        # Иначе нужно определить значения параметра операционной характеристики,
-        # и после воспользоваться аналитической формулой
-        h = operation_characteristic_root(p, p_low, p_high)
+        # Иначе общей формулой вероятности, в которую нельзя подставить h = 0
         return (np.exp(high_bound*h) - 1) / (np.exp(high_bound*h) - np.exp(low_bound*h))
 
 
@@ -121,6 +139,11 @@ def one_sided_sequential_sample_size(p, p_low, p_high, alpha_low, alpha_high):
     Tartakovsky A., Nikiforov I., Basseville M.
     Sequential analysis: Hypothesis testing and changepoint detection.
     – CRC press, 2014. – С. 125.
+
+    При p из {p_low, p_high} совпадает с результатами работы
+    Айвазян  С.
+    Сравнение оптимальных свойств критериев Неймана–Пирсона и Вальда
+    - Теория вероятн. и ее примен., 4:1 (1959), 86–93
 
     :param p: истинное значение вероятности,
               лежащее в отрезке [p_low, p_high]
@@ -138,10 +161,12 @@ def one_sided_sequential_sample_size(p, p_low, p_high, alpha_low, alpha_high):
 
     # Критическое значение параметра p
     p_crit = p_critical(p_low, p_high)
+    # Значение корня операционной характеристики
+    h = operation_characteristic_root(p, p_low, p_high)
     # Значение операционной характеристики
-    o_c = operation_characteristic(p, p_low, p_high, alpha_low, alpha_high)
+    o_c = operation_characteristic(h, alpha_low, alpha_high)
 
-    if np.abs(p - p_crit) < min(1 / 10_000, p / 100, (1 - p) / 100):
+    if np.abs(p - p_crit) < min(1 / 10_000, p / 1_000, (1 - p) / 1_000, (p_high - p_low) / 100):
         # Если значение p является критическим,
         # используем квадратичную формулу
         e_z_sqr = p * (np.log(p_high / p_low)**2) + (1 - p) * (np.log((1-p_low) / (1-p_high))**2)
